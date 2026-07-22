@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/126.0.0.0 Safari/537.36\" \"https://gameanswer.net/wp-json/wp/v2/posts?slug=colorwood-associations-level-2500&_fields=content\")",
+      "Bash(python -c ' *)",
+      "Bash(curl -s -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/126.0.0.0 Safari/537.36\" \"https://gameanswer.net/wp-json/wp/v2/posts?slug=colorwood-associations-level-1000&_fields=content\")"
+    ]
+  }
+}
