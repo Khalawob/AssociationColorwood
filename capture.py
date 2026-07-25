@@ -98,6 +98,20 @@ def watch():
         shot(f"w{i:02d}")
 
 
+def tap(x, y):
+    adb(["shell", "input", "tap", str(x), str(y)])
+
+
+def screencap():
+    import io
+    from PIL import Image
+    check_device()
+    png = adb(["exec-out", "screencap", "-p"], binary=True)
+    if not png.startswith(b"\x89PNG"):
+        raise RuntimeError("screencap did not return a PNG")
+    return Image.open(io.BytesIO(png)).convert('RGB')
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "info"
     if cmd == "info":

@@ -158,19 +158,23 @@ def ocr_tile(tile):
     return text
 
 
-def read_board(image_path):
-    image = Image.open(image_path).convert('RGB')
+def read_board_positioned(image):
     if not validate_grid(image):
         return []
-    words = []
+    results = []
     for row_idx, cy in enumerate(ROW_CENTERS):
         if _is_header_row(image, cy):
             continue
         for col_idx, cx in enumerate(COL_CENTERS):
             word = ocr_tile_at(image, cx, cy)
-            if word:
-                words.append(word)
-    return words
+            results.append((word, row_idx, col_idx))
+    return results
+
+
+def read_board(image_path):
+    image = Image.open(image_path).convert('RGB')
+    tiles = read_board_positioned(image)
+    return [word for word, row, col in tiles if word]
 
 
 if __name__ == '__main__':
