@@ -32,8 +32,16 @@ def _norm(word):
     return _normalise_squash(word)
 
 
-def _fuzzy_match(word: str, candidates: set[str],
-                  threshold: float = 0.8) -> str | None:
+def _threshold_for_length(length: int) -> float:
+    if length <= 3:
+        return 0.6
+    if length <= 4:
+        return 0.7
+    return 0.8
+
+
+def _fuzzy_match(word: str, candidates: set[str]) -> str | None:
+    threshold = _threshold_for_length(len(word))
     best_ratio = 0.0
     best_match = None
     for candidate in candidates:

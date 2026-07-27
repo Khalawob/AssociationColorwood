@@ -71,11 +71,19 @@ class Matcher:
                         vocab[sq] = word
         return vocab
 
-    def _fuzzy_correct(self, word: str, vocab: dict[str, str],
-                       threshold: float = 0.8) -> tuple[str, float] | None:
+    @staticmethod
+    def _threshold_for_length(length: int) -> float:
+        if length <= 3:
+            return 0.6
+        if length <= 4:
+            return 0.7
+        return 0.8
+
+    def _fuzzy_correct(self, word: str, vocab: dict[str, str]) -> tuple[str, float] | None:
         sq = _normalise_squash(word)
         if sq in vocab:
             return None
+        threshold = self._threshold_for_length(len(sq))
         best_ratio = 0.0
         best_match = None
         for candidate in vocab:
