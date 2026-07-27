@@ -60,6 +60,7 @@ python build_boards.py   # Build boards.json from CSV
 # Runtime
 python solver.py                        # Solve the current board on connected phone
 python solver.py --dry-run              # Identify board without tapping
+python solver.py --preview              # Annotate screenshot with numbered tap markers
 python solver.py --variant "US Version" # Hint for variant tiebreaking
 python capture.py shot                  # Take a single screenshot
 
@@ -95,6 +96,9 @@ This applies in two places:
 
 ### Board Matching
 `Matcher` builds an inverted word→board index on init. Each visible word votes for boards containing it; highest-voted board wins. Confidence = top votes / total words. See `matcher.py` for statuses: `confident`, `weak`, `ambiguous`, `none`.
+
+### Preview Mode
+`--preview` runs the full solver pipeline (screenshot → OCR → board identification → solve order → word matching) but instead of tapping, draws numbered colored markers on the screenshot at each tap coordinate in solve order. Each group gets a distinct color and a label. Unmatched groups appear as red warning text at the bottom. The annotated image saves to `preview_<board_id>.png` and opens automatically. Requires a connected device via ADB but not the game itself. See `solver.py:115-208` for `_collect_tap_plan` and `_render_preview`.
 
 ## Additional Documentation
 
