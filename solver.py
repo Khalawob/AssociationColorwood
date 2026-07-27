@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import time
+from dataclasses import dataclass
 
 from difflib import SequenceMatcher
 
@@ -30,6 +31,33 @@ def compute_solve_order(board):
 
 def _norm(word):
     return _normalise_squash(word)
+
+
+@dataclass
+class PlannedTap:
+    tap_number: int
+    group_index: int
+    group_label: str
+    tap_x: int
+    tap_y: int
+
+
+@dataclass
+class UnmatchedGroup:
+    group_index: int
+    group_label: str
+    words: list
+
+
+GROUP_COLORS = [
+    (220, 50, 50),
+    (50, 130, 220),
+    (50, 180, 50),
+    (200, 140, 30),
+    (160, 50, 200),
+    (30, 190, 190),
+    (220, 100, 160),
+]
 
 
 def _threshold_for_length(length: int) -> float:
@@ -84,12 +112,118 @@ def match_words_to_group(tiles, group):
     return None
 
 
-def solve_board(boards_path=None, variant_hint=None, dry_run=False):
+def _collect_tap_plan(boards_path, variant_hint):
+    from capture import screencap
+    from ocr import read_board_positioned, COL_CENTERS, ROW_CENTERS
+
+    _, lookup = load_boards(boards_path)
+    matcher = Matcher(boards_path)
+
+    print('Capturing screenshot...')
+    image = screencap()
+    tiles = read_board_positioned(image)
+    visible_words = [w for w, _, _ in tiles if w]
+    print(f'  {len(visible_words)} words visible: {visible_words[:8]}...')
+
+    result = matcher.identify(visible_words, variant_hint)
+    if result.status == 'none':
+        print(f'Cannot identify board. Visible words: {visible_words}')
+        return None
+
+    board = lookup[result.board_id]
+    solve_order = compute_solve_order(board)
+    print(f'Board identified: {result.board_id} ({result.status}, '
+          f'confidence={result.confidence:.2f})')
+
+    planned_taps = []
+    unmatched_groups = []
+    tap_number = 1
+
+    for idx, group in solve_order:
+        positions = match_words_to_group(tiles, group)
+        if positions is None:
+            unmatched_groups.append(UnmatchedGroup(idx, group['label'], group['words']))
+            continue
+        group_color_idx = len({t.group_index for t in planned_taps})
+        for row, col in positions:
+            planned_taps.append(PlannedTap(
+                tap_number=tap_number,
+                group_index=group_color_idx,
+                group_label=group['label'],
+                tap_x=COL_CENTERS[col],
+                tap_y=ROW_CENTERS[row] + 30,
+            ))
+            tap_number += 1
+
+    return image, planned_taps, unmatched_groups, result.board_id
+
+
+def _render_preview(image, planned_taps, unmatched_groups, board_id):
+    from PIL import ImageDraw, ImageFont
+
+    draw = ImageDraw.Draw(image)
+    try:
+        font = ImageFont.truetype('arial.ttf', 14)
+        small_font = ImageFont.truetype('arial.ttf', 11)
+    except OSError:
+        font = ImageFont.load_default()
+        small_font = font
+
+    label_drawn = set()
+
+    for tap in planned_taps:
+        color = GROUP_COLORS[tap.group_index % len(GROUP_COLORS)]
+        cx, cy = tap.tap_x, tap.tap_y
+        r = 16
+
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r],
+                     fill=color, outline='white', width=2)
+
+        text = str(tap.tap_number)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text((cx - tw // 2, cy - th // 2), text, fill='white', font=font)
+
+        if tap.group_index not in label_drawn:
+            label_drawn.add(tap.group_index)
+            label = tap.group_label
+            lbbox = draw.textbbox((0, 0), label, font=small_font)
+            lw = lbbox[2] - lbbox[0]
+            lh = lbbox[3] - lbbox[1]
+            lx = cx + r + 4
+            ly = cy - lh // 2
+            draw.rectangle([lx - 2, ly - 2, lx + lw + 2, ly + lh + 2],
+                           fill=(0, 0, 0))
+            draw.text((lx, ly), label, fill=color, font=small_font)
+
+    if unmatched_groups:
+        y_offset = image.height - 30 * len(unmatched_groups) - 10
+        for ug in unmatched_groups:
+            text = f"? {ug.group_label}: {', '.join(ug.words)}"
+            draw.text((10, y_offset), text, fill=(255, 80, 80), font=small_font)
+            y_offset += 30
+
+    out_path = f'preview_{board_id}.png'
+    image.save(out_path)
+    return out_path
+
+
+def solve_board(boards_path=None, variant_hint=None, dry_run=False, preview=False):
     from capture import screencap, tap
     from ocr import read_board_positioned, COL_CENTERS, ROW_CENTERS
 
     if boards_path is None:
         boards_path = os.path.join(os.path.dirname(__file__), 'boards.json')
+
+    if preview:
+        result = _collect_tap_plan(boards_path, variant_hint)
+        if result is None:
+            return False
+        image, taps, unmatched, board_id = result
+        out_path = _render_preview(image, taps, unmatched, board_id)
+        print(f'Preview saved to {out_path}')
+        os.startfile(out_path)
+        return True
 
     _, lookup = load_boards(boards_path)
     matcher = Matcher(boards_path)
@@ -184,6 +318,8 @@ if __name__ == '__main__':
                         help='Show solve plan without tapping')
     parser.add_argument('--boards', type=str, default=None,
                         help='Path to boards.json')
+    parser.add_argument('--preview', action='store_true',
+                        help='Annotate screenshot with tap markers; no tapping')
     args = parser.parse_args()
     solve_board(boards_path=args.boards, variant_hint=args.variant,
-                dry_run=args.dry_run)
+                dry_run=args.dry_run, preview=args.preview)
