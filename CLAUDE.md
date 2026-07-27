@@ -5,9 +5,8 @@ Automated solver for the mobile game "Colorwood Associations" (Burny Games). Scr
 ## Tech Stack
 
 - **Language:** Python 3.10+ (uses `str | None` union syntax)
-- **Libraries:** `requirements.txt` — requests, beautifulsoup4, Pillow, pytesseract
+- **Libraries:** `requirements.txt` — requests, beautifulsoup4, Pillow, easyocr (PyTorch-based OCR)
 - **External tools:**
-  - Tesseract OCR — auto-detected on Windows at `C:\Program Files\Tesseract-OCR\tesseract.exe` (`ocr.py:8-11`)
   - ADB (Android Debug Bridge) — all device communication goes through `capture.py:19-30`
 - **Testing:** pytest (not in requirements.txt — install separately)
 
@@ -26,7 +25,7 @@ Automated solver for the mobile game "Colorwood Associations" (Burny Games). Scr
 | File | Purpose |
 |------|---------|
 | `capture.py` | ADB wrapper — screenshots (`screencap()`), tap input (`tap(x,y)`), CLI subcommands: `info`, `shot`, `burst`, `watch` |
-| `ocr.py` | Extracts word tiles from screenshots — hardcoded for 720x1520 resolution (`ocr.py:14-26`) |
+| `ocr.py` | Extracts word tiles from screenshots using EasyOCR — hardcoded for 720x1520 resolution (`ocr.py:14-26`) |
 | `matcher.py` | Identifies which board is being played using a voting algorithm. Only class in the project: `Matcher` (`matcher.py:7-13` for `MatchResult` dataclass) |
 | `solver.py` | Main entry point — orchestrates capture → OCR → match → tap loop |
 
@@ -35,7 +34,7 @@ Automated solver for the mobile game "Colorwood Associations" (Burny Games). Scr
 | File | Covers |
 |------|--------|
 | `test_matcher.py` | Board identification: exact match, variant tiebreaking, OCR robustness, ambiguous/garbage input |
-| `test_ocr.py` | Grid detection, tile cropping, OCR accuracy. Skips if captures/ or Tesseract unavailable |
+| `test_ocr.py` | Grid detection, tile cropping, OCR accuracy. Skips if captures/ or EasyOCR unavailable |
 | `test_solver.py` | Solve order computation, word-to-group matching (exact, fuzzy, missing), depth ordering |
 
 ### Data Files
@@ -79,7 +78,7 @@ Each board has 5-7 groups. Each group has a `label`, 4 `words`, and a `type`:
 Picture groups depend on theme groups via `consumed_by` pointers. The solver must complete depth-0 groups first, then depth-1, etc. Cyclic groups (depth `null`) are solved last. See `solver.py:16-26` for `compute_solve_order`.
 
 ### OCR Calibration
-All tile coordinates are hardcoded for 720x1520 screens — `COL_CENTERS`, `ROW_CENTERS`, tile dimensions at `ocr.py:14-26`. Changing phone resolution requires updating these constants.
+All tile coordinates are hardcoded for 720x1520 screens — `COL_CENTERS`, `ROW_CENTERS`, tile dimensions at `ocr.py:14-26`. Changing phone resolution requires updating these constants. The EasyOCR Reader is initialized as a lazy singleton (`_get_reader()`) to avoid per-tile overhead.
 
 ### Text Normalization
 Two normalization functions in `matcher.py:16-20`: `_normalise_squash` (strip non-alphanumeric) and `_normalise_spaced` (collapse whitespace). `solver.py` reuses `_normalise_squash` via `_norm()` at `solver.py:29-30`.
