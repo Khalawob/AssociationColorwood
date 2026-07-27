@@ -84,8 +84,13 @@ All tile coordinates are hardcoded for 720x1520 screens — `COL_CENTERS`, `ROW_
 Two normalization functions in `matcher.py:16-20`: `_normalise_squash` (strip non-alphanumeric) and `_normalise_spaced` (collapse whitespace). `solver.py` reuses `_normalise_squash` via `_norm()` at `solver.py:32-33`.
 
 ### Fuzzy OCR Correction
-When OCR misreads a word, fuzzy matching corrects it against a scoped vocabulary using `difflib.SequenceMatcher` with an 80% similarity threshold. This applies in two places:
-- **Board identification** (`matcher.py`): After the first voting pass, unmatched OCR words are fuzzy-matched against the vocabulary of the top 5 candidate boards (`_fuzzy_correct`), then re-voted. Restricting candidates to top boards (rather than the full dictionary) minimizes false positives.
+When OCR misreads a word, fuzzy matching corrects it against a scoped vocabulary using `difflib.SequenceMatcher`. The similarity threshold scales by word length to handle short words where a single character error causes a large ratio drop:
+- **3 letters or fewer:** 60%
+- **4 letters:** 70%
+- **5+ letters:** 80%
+
+This applies in two places:
+- **Board identification** (`matcher.py`): After the first voting pass, unmatched OCR words are fuzzy-matched against the vocabulary of the top 5 candidate boards (`_fuzzy_correct`), then re-voted. Restricting candidates to top boards (rather than the full dictionary) minimizes false positives. Corrections and unmatched words are logged in the solver output.
 - **Tile tapping** (`solver.py`): `match_words_to_group` does a second pass where unmatched tiles are fuzzy-matched against the group's remaining needed words (`_fuzzy_match`), so OCR errors don't block the solve loop.
 
 ### Board Matching
