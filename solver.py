@@ -111,6 +111,14 @@ def solve_board(boards_path=None, variant_hint=None, dry_run=False):
             print(f'  {len(solve_order)} groups to solve:')
             for i, g in solve_order:
                 print(f'    [{i}] depth={g["depth"]} {g["label"]}: {g["words"]}')
+            if result.corrections:
+                print('  OCR corrections:')
+                for original, corrected, ratio in result.corrections:
+                    print(f'    "{original}" -> "{corrected}" ({ratio:.0%} match)')
+            if result.unmatched:
+                print('  OCR unmatched:')
+                for word in result.unmatched:
+                    print(f'    "{word}" (no match above 80%)')
 
         solved_one = False
         for idx, group in solve_order:

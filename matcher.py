@@ -12,6 +12,8 @@ class MatchResult:
     status: str
     candidates: list[tuple[str, int]]
     ambiguous_with: list[str]
+    corrections: list[tuple[str, str, float]] = field(default_factory=list)
+    unmatched: list[str] = field(default_factory=list)
 
 
 def _normalise_squash(word: str) -> str:
@@ -70,7 +72,7 @@ class Matcher:
         return vocab
 
     def _fuzzy_correct(self, word: str, vocab: dict[str, str],
-                       threshold: float = 0.8) -> str | None:
+                       threshold: float = 0.8) -> tuple[str, float] | None:
         sq = _normalise_squash(word)
         if sq in vocab:
             return None
@@ -82,7 +84,7 @@ class Matcher:
                 best_ratio = ratio
                 best_match = candidate
         if best_match and best_ratio >= threshold:
-            return best_match
+            return best_match, best_ratio
         return None
 
     def identify(self, visible_words: list[str],
@@ -107,16 +109,25 @@ class Matcher:
         if not votes and not unmatched_words:
             return MatchResult(None, 0.0, 'none', [], [])
 
+        corrections: list[tuple[str, str, float]] = []
+        still_unmatched: list[str] = []
+
         if votes and unmatched_words:
             top_indices = [idx for idx, _ in votes.most_common(5)]
             vocab = self._board_vocabulary(top_indices)
             for word in unmatched_words:
-                corrected = self._fuzzy_correct(word, vocab)
-                if corrected:
+                result = self._fuzzy_correct(word, vocab)
+                if result:
+                    corrected, ratio = result
+                    corrections.append((word, vocab[corrected], ratio))
                     hits = self._index.get(corrected, [])
                     for idx in hits:
                         votes[idx] += 1
                         board_matched_words.setdefault(idx, set()).add(corrected)
+                else:
+                    still_unmatched.append(word)
+        else:
+            still_unmatched = unmatched_words
 
         if not votes:
             return MatchResult(None, 0.0, 'none', [], [])
@@ -164,4 +175,6 @@ class Matcher:
             status=status,
             candidates=candidates,
             ambiguous_with=ambiguous_ids,
+            corrections=corrections,
+            unmatched=still_unmatched,
         )
