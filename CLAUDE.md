@@ -81,7 +81,12 @@ Picture groups depend on theme groups via `consumed_by` pointers. The solver mus
 All tile coordinates are hardcoded for 720x1520 screens — `COL_CENTERS`, `ROW_CENTERS`, tile dimensions at `ocr.py:14-26`. Changing phone resolution requires updating these constants. The EasyOCR Reader is initialized as a lazy singleton (`_get_reader()`) to avoid per-tile overhead.
 
 ### Text Normalization
-Two normalization functions in `matcher.py:16-20`: `_normalise_squash` (strip non-alphanumeric) and `_normalise_spaced` (collapse whitespace). `solver.py` reuses `_normalise_squash` via `_norm()` at `solver.py:29-30`.
+Two normalization functions in `matcher.py:16-20`: `_normalise_squash` (strip non-alphanumeric) and `_normalise_spaced` (collapse whitespace). `solver.py` reuses `_normalise_squash` via `_norm()` at `solver.py:32-33`.
+
+### Fuzzy OCR Correction
+When OCR misreads a word, fuzzy matching corrects it against a scoped vocabulary using `difflib.SequenceMatcher` with an 80% similarity threshold. This applies in two places:
+- **Board identification** (`matcher.py`): After the first voting pass, unmatched OCR words are fuzzy-matched against the vocabulary of the top 5 candidate boards (`_fuzzy_correct`), then re-voted. Restricting candidates to top boards (rather than the full dictionary) minimizes false positives.
+- **Tile tapping** (`solver.py`): `match_words_to_group` does a second pass where unmatched tiles are fuzzy-matched against the group's remaining needed words (`_fuzzy_match`), so OCR errors don't block the solve loop.
 
 ### Board Matching
 `Matcher` builds an inverted word→board index on init. Each visible word votes for boards containing it; highest-voted board wins. Confidence = top votes / total words. See `matcher.py` for statuses: `confident`, `weak`, `ambiguous`, `none`.
