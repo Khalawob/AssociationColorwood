@@ -3,6 +3,8 @@ import json
 import os
 import time
 
+from difflib import SequenceMatcher
+
 from matcher import Matcher, _normalise_squash
 
 
@@ -30,6 +32,20 @@ def _norm(word):
     return _normalise_squash(word)
 
 
+def _fuzzy_match(word: str, candidates: set[str],
+                  threshold: float = 0.8) -> str | None:
+    best_ratio = 0.0
+    best_match = None
+    for candidate in candidates:
+        ratio = SequenceMatcher(None, word, candidate).ratio()
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_match = candidate
+    if best_match and best_ratio >= threshold:
+        return best_match
+    return None
+
+
 def match_words_to_group(tiles, group):
     needed = {_norm(w) for w in group['words']}
     positions = []
@@ -41,6 +57,20 @@ def match_words_to_group(tiles, group):
         if n in needed and n not in matched:
             positions.append((row, col))
             matched.add(n)
+    if matched == needed:
+        return positions
+    remaining = needed - matched
+    for word, row, col in tiles:
+        if word is None:
+            continue
+        n = _norm(word)
+        if n in matched:
+            continue
+        fuzzy = _fuzzy_match(n, remaining)
+        if fuzzy:
+            positions.append((row, col))
+            matched.add(fuzzy)
+            remaining.discard(fuzzy)
     if matched == needed:
         return positions
     return None

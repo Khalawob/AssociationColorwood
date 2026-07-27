@@ -2,6 +2,7 @@ import json
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 
 
 @dataclass
@@ -58,6 +59,32 @@ class Matcher:
             hits = self._index.get(sp, [])
         return hits
 
+    def _board_vocabulary(self, board_indices: list[int]) -> dict[str, str]:
+        vocab: dict[str, str] = {}
+        for idx in board_indices:
+            for group in self._boards[idx]['groups']:
+                for word in group['words']:
+                    sq = _normalise_squash(word)
+                    if sq not in vocab:
+                        vocab[sq] = word
+        return vocab
+
+    def _fuzzy_correct(self, word: str, vocab: dict[str, str],
+                       threshold: float = 0.8) -> str | None:
+        sq = _normalise_squash(word)
+        if sq in vocab:
+            return None
+        best_ratio = 0.0
+        best_match = None
+        for candidate in vocab:
+            ratio = SequenceMatcher(None, sq, candidate).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_match = candidate
+        if best_match and best_ratio >= threshold:
+            return best_match
+        return None
+
     def identify(self, visible_words: list[str],
                  variant_hint: str | None = None) -> MatchResult:
         if not visible_words:
@@ -65,13 +92,31 @@ class Matcher:
 
         votes: Counter[int] = Counter()
         board_matched_words: dict[int, set[str]] = {}
+        unmatched_words: list[str] = []
 
         for word in visible_words:
             sq = _normalise_squash(word)
             hits = self._lookup(word)
-            for idx in hits:
-                votes[idx] += 1
-                board_matched_words.setdefault(idx, set()).add(sq)
+            if hits:
+                for idx in hits:
+                    votes[idx] += 1
+                    board_matched_words.setdefault(idx, set()).add(sq)
+            else:
+                unmatched_words.append(word)
+
+        if not votes and not unmatched_words:
+            return MatchResult(None, 0.0, 'none', [], [])
+
+        if votes and unmatched_words:
+            top_indices = [idx for idx, _ in votes.most_common(5)]
+            vocab = self._board_vocabulary(top_indices)
+            for word in unmatched_words:
+                corrected = self._fuzzy_correct(word, vocab)
+                if corrected:
+                    hits = self._index.get(corrected, [])
+                    for idx in hits:
+                        votes[idx] += 1
+                        board_matched_words.setdefault(idx, set()).add(corrected)
 
         if not votes:
             return MatchResult(None, 0.0, 'none', [], [])

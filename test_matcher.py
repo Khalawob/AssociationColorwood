@@ -123,3 +123,12 @@ def test_garbage(matcher):
     result = matcher.identify(words)
     assert result.status == 'none'
     assert result.board_id is None
+
+
+def test_fuzzy_ocr_correction(matcher):
+    words = list(LEVEL_11_US_WORDS)
+    words[0] = "Speeed"     # Speed → Speeed (OCR stutter)
+    words[3] = "Bali"       # Ball → Bali (OCR misread)
+    result = matcher.identify(words)
+    assert result.board_id == LEVEL_11_US_ID
+    assert result.status in ('confident', 'weak')

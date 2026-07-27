@@ -77,6 +77,16 @@ def test_match_words_to_group_fuzzy():
     ]
     group = {'words': ['Referee', 'Stadium', 'Goal', 'Ball']}
     result = match_words_to_group(tiles, group)
+    assert result is not None
+    assert set(result) == {(1, 3), (1, 2), (2, 0), (0, 3)}
+
+
+def test_match_words_to_group_fuzzy_below_threshold():
+    tiles = [
+        ('XYZ', 1, 3), ('REFEREE', 1, 2), ('GOAL', 2, 0), ('BALL', 0, 3),
+    ]
+    group = {'words': ['Referee', 'Stadium', 'Goal', 'Ball']}
+    result = match_words_to_group(tiles, group)
     assert result is None
 
 
