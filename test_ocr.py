@@ -1,5 +1,4 @@
 import os
-import shutil
 import pytest
 from PIL import Image
 from ocr import validate_grid, crop_tiles, ocr_tile, ocr_tile_at, read_board, COL_CENTERS, ROW_CENTERS, TILE_HALF_W, TILE_HALF_H
@@ -13,14 +12,17 @@ has_captures = pytest.mark.skipif(
     not os.path.exists(FRESH_BOARD),
     reason='captures/ directory not available'
 )
-def _tesseract_available():
-    if shutil.which('tesseract'):
-        return True
-    return os.path.isfile(r'C:\Program Files\Tesseract-OCR\tesseract.exe')
 
-needs_tesseract = pytest.mark.skipif(
-    not _tesseract_available(),
-    reason='Tesseract not installed'
+def _easyocr_available():
+    try:
+        import easyocr
+        return True
+    except ImportError:
+        return False
+
+needs_ocr = pytest.mark.skipif(
+    not _easyocr_available(),
+    reason='EasyOCR not installed'
 )
 
 
@@ -62,7 +64,7 @@ def _crop_single_tile(image_path, row, col):
 
 
 @has_captures
-@needs_tesseract
+@needs_ocr
 def test_ocr_single_word():
     img = Image.open(FRESH_BOARD).convert('RGB')
     result = ocr_tile_at(img, COL_CENTERS[0], ROW_CENTERS[0])
@@ -70,7 +72,7 @@ def test_ocr_single_word():
 
 
 @has_captures
-@needs_tesseract
+@needs_ocr
 def test_ocr_multi_word():
     img = Image.open(FRESH_BOARD).convert('RGB')
     result = ocr_tile_at(img, COL_CENTERS[2], ROW_CENTERS[0])
@@ -78,7 +80,7 @@ def test_ocr_multi_word():
 
 
 @has_captures
-@needs_tesseract
+@needs_ocr
 def test_ocr_two_line():
     img = Image.open(FRESH_BOARD).convert('RGB')
     result = ocr_tile_at(img, COL_CENTERS[1], ROW_CENTERS[2])
@@ -94,7 +96,7 @@ EXPECTED_FRESH_BOARD_WORDS = [
 
 
 @has_captures
-@needs_tesseract
+@needs_ocr
 def test_read_board_full():
     words = read_board(FRESH_BOARD)
     matched = sum(1 for w in EXPECTED_FRESH_BOARD_WORDS if w in words)
@@ -102,7 +104,7 @@ def test_read_board_full():
 
 
 @has_captures
-@needs_tesseract
+@needs_ocr
 def test_read_board_skips_solved_header():
     words = read_board(SOLVED_HEADER)
     for header_word in ['AFRICA', 'EUROPE', 'ASIA', 'SOUTH AMERICA', 'CONTINENTS']:
@@ -110,7 +112,7 @@ def test_read_board_skips_solved_header():
 
 
 @has_captures
-@needs_tesseract
+@needs_ocr
 def test_ocr_feeds_matcher():
     from matcher import Matcher
     boards_path = os.path.join(os.path.dirname(__file__), 'boards.json')

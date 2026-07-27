@@ -1,14 +1,18 @@
 import colorsys
 import os
-import shutil
 import sys
+import numpy as np
 from PIL import Image
-import pytesseract
+import easyocr
 
-if os.name == 'nt' and not shutil.which('tesseract'):
-    _tess = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-    if os.path.isfile(_tess):
-        pytesseract.pytesseract.tesseract_cmd = _tess
+_reader = None
+
+
+def _get_reader():
+    global _reader
+    if _reader is None:
+        _reader = easyocr.Reader(['en'], gpu=False)
+    return _reader
 
 
 SCREEN_W, SCREEN_H = 720, 1520
@@ -74,10 +78,6 @@ def crop_tiles(image):
     return tiles
 
 
-_TESSDATA_DIR = os.path.join(os.path.expanduser('~'), 'eng_best.traineddata')
-_USE_BEST = os.path.isfile(_TESSDATA_DIR)
-_TESSDATA_PARENT = os.path.expanduser('~') if _USE_BEST else None
-_TESS_LANG = 'eng_best' if _USE_BEST else 'eng'
 
 
 def _find_text_band(image, cx, cy, half_w=50):
@@ -128,14 +128,10 @@ def ocr_tile_at(image, cx, cy):
     gray = text_region.convert('L')
     scale = 4
     big = gray.resize((gray.width * scale, gray.height * scale), Image.LANCZOS)
-    binary = big.point(lambda p: 0 if p < 140 else 255)
-    pad = 30
-    padded = Image.new('L', (binary.width + pad * 2, binary.height + pad * 2), 255)
-    padded.paste(binary, (pad, pad))
 
-    psm = '6' if (text_bottom - text_top) > 20 else '7'
-    config = f'--psm {psm} --tessdata-dir {_TESSDATA_PARENT}' if _USE_BEST else f'--psm {psm}'
-    text = pytesseract.image_to_string(padded, lang=_TESS_LANG, config=config)
+    arr = np.array(big)
+    results = _get_reader().readtext(arr, detail=0, paragraph=True)
+    text = ' '.join(results)
     text = _clean_ocr(text)
     if len(text) < 2:
         return None
@@ -146,12 +142,10 @@ def ocr_tile(tile):
     gray = tile.convert('L')
     scale = 4
     big = gray.resize((gray.width * scale, gray.height * scale), Image.LANCZOS)
-    binary = big.point(lambda p: 0 if p < 100 else 255)
-    pad = 30
-    padded = Image.new('L', (big.width + pad * 2, big.height + pad * 2), 255)
-    padded.paste(big, (pad, pad))
-    config = f'--psm 7 --tessdata-dir {_TESSDATA_PARENT}' if _USE_BEST else '--psm 7'
-    text = pytesseract.image_to_string(padded, lang=_TESS_LANG, config=config)
+
+    arr = np.array(big)
+    results = _get_reader().readtext(arr, detail=0, paragraph=True)
+    text = ' '.join(results)
     text = ' '.join(text.split())
     if len(text) < 2 or not any(c.isalpha() for c in text):
         return None
